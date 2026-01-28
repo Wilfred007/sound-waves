@@ -1,0 +1,25 @@
+{
+  "name": "audioblocks-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@stacks/auth": "^7.3.1",
+    "@stacks/connect": "^8.2.4",
+    "@stacks/network": "^6.11.3",
+    "@stacks/transactions": "^6.11.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.0"
+  }
+}
