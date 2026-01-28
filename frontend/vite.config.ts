@@ -17,8 +17,26 @@ export default defineConfig({
     global: 'globalThis',
     'process.env': {},
   },
+  resolve: {
+    alias: {
+      stream: 'stream-browserify',
+      crypto: 'crypto-browserify',
+      util: 'util',
+      events: 'events',
+      path: 'path-browserify',
+    },
+  },
   optimizeDeps: {
-    include: ['buffer', 'process'],
+    include: [
+      'buffer',
+      'process',
+      'stream-browserify',
+      'crypto-browserify',
+      'util',
+      'events',
+      'path-browserify',
+      'readable-stream',
+    ],
     esbuildOptions: {
       define: {
         global: 'globalThis',
