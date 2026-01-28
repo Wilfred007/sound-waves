@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppConfig, UserSession } from '@stacks/auth';
-// Use a clean, single import for the connect library
-import { showConnect, openContractCall } from '@stacks/connect';
+// Namespace import is more resilient in Vite for this specific library
+import * as StacksConnect from '@stacks/connect';
 
 import {
   ARTIST_REGISTRY,
@@ -15,100 +15,76 @@ import {
   roGetTotalArtists,
 } from './stacks';
 
-// --- Configuration ---
+// --- Global Config ---
 const appConfig = new AppConfig(['store_write', 'publish_data']);
 const userSession = new UserSession({ appConfig });
-
 const appDetails = {
   name: 'Audioblocks DApp (Testnet)',
   icon: window.location.origin + '/favicon.ico',
 };
 
-// --- Helper Utilities ---
-const clearStaleSessionData = () => {
-  localStorage.removeItem('blockstack');
-  localStorage.removeItem('blockstack-session');
-  localStorage.removeItem('blockstack-transit-private-key');
-  try {
-    (userSession as any).store?.deleteSessionData?.();
-  } catch (e) {}
-};
-
-function Actions() {
+export default function App() {
   const [userData, setUserData] = useState<any>(null);
-  const [sessionError, setSessionError] = useState<string | null>(null);
   const [totalArtists, setTotalArtists] = useState<string | number | null>(null);
-  const [songId, setSongId] = useState<string>('1');
-  const [songCid, setSongCid] = useState<string>('');
   const [artistId, setArtistId] = useState<string>('1');
   const [tipUstx, setTipUstx] = useState<string>('500000');
-  const [collectionId, setCollectionId] = useState<string>('1');
-  const [tokenId, setTokenId] = useState<string>('1');
-  const [priceUstx, setPriceUstx] = useState<string>('1000000');
-  const [tipsStats, setTipsStats] = useState<any | null>(null);
   const [pending, setPending] = useState<string>('');
 
-  // --- Initialization ---
+  // --- Auth logic ---
   useEffect(() => {
-    const checkAuth = async () => {
-      if (userSession.isUserSignedIn()) {
-        setUserData(userSession.loadUserData());
-      } else if (userSession.isSignInPending()) {
-        try {
-          const data = await userSession.handlePendingSignIn();
-          setUserData(data);
-        } catch (err) {
-          console.error("Auth error:", err);
-          clearStaleSessionData();
-        }
-      }
-    };
-    checkAuth();
+    if (userSession.isUserSignedIn()) {
+      setUserData(userSession.loadUserData());
+    } else if (userSession.isSignInPending()) {
+      userSession.handlePendingSignIn().then(data => {
+        setUserData(data);
+      }).catch(console.error);
+    }
   }, []);
 
-  // --- Handlers ---
   const handleSignIn = useCallback(() => {
-    if (typeof showConnect !== 'function') {
-      setSessionError("Connect library not loaded. Please refresh.");
+    // Check the namespace object specifically
+    const connector = StacksConnect.showConnect || (StacksConnect as any).default?.showConnect;
+    
+    if (typeof connector !== 'function') {
+      alert("Stacks Connect library failed to load. Please ensure vite-plugin-node-polyfills is installed and configured.");
       return;
     }
 
-    showConnect({
+    connector({
       appDetails,
       userSession,
       onFinish: () => {
-        setUserData(userSession.loadUserData());
         window.location.reload();
       },
-      onCancel: () => console.log('User cancelled'),
+      onCancel: () => console.log('Sign in cancelled'),
     });
   }, []);
 
-  const handleSignOut = useCallback(() => {
+  const handleSignOut = () => {
     userSession.signUserOut();
-    clearStaleSessionData();
-    setUserData(null);
-  }, []);
+    window.location.reload();
+  };
 
-  // --- Contract Interactions ---
+  // --- Contract Actions ---
   const fetchTotalArtists = async () => {
     setPending('Fetching...');
     try {
       const v = await roGetTotalArtists();
       setTotalArtists(v as any);
-    } catch (e) { alert(e); }
-    finally { setPending(''); }
+    } finally { setPending(''); }
   };
 
   const tipArtist = async () => {
-    if (!userData) return alert("Sign in first");
-    try {
-      const options = makeTipArtistOptions(Number(artistId), BigInt(tipUstx));
-      await openContractCall({
-        ...options,
-        onFinish: (data) => alert(`Tx Sent: ${data.txId}`),
-      });
-    } catch (e) { alert(e); }
+    if (!userData) return alert('Please sign in');
+    const options = makeTipArtistOptions(Number(artistId), BigInt(tipUstx));
+    
+    // Using the same resilient check for contract calls
+    const callContract = StacksConnect.openContractCall || (StacksConnect as any).default?.openContractCall;
+    
+    await callContract({
+      ...options,
+      onFinish: (data: any) => alert(`Transaction sent: ${data.txId}`),
+    });
   };
 
   const userAddress = useMemo(() => 
@@ -116,43 +92,40 @@ function Actions() {
   );
 
   return (
-    <div style={{ maxWidth: 850, margin: '20px auto', padding: 20, fontFamily: 'system-ui' }}>
-      <h1>Audioblocks DApp</h1>
-      
-      <div style={{ padding: 15, background: userData ? '#f0fff0' : '#fff0f0', borderRadius: 8, marginBottom: 20 }}>
+    <div style={{ maxWidth: 800, margin: 'auto', padding: 20, fontFamily: 'sans-serif' }}>
+      <h1>Audioblocks Stacks DApp</h1>
+
+      <div style={{ border: '1px solid #ddd', padding: 20, borderRadius: 10, marginBottom: 20 }}>
         {userData ? (
-          <>
-            <div>✅ Connected: <code>{userAddress}</code></div>
-            <button onClick={handleSignOut} style={{ marginTop: 10 }}>Sign Out</button>
-          </>
+          <div>
+            <p>Connected: <code>{userAddress}</code></p>
+            <button onClick={handleSignOut}>Disconnect</button>
+          </div>
         ) : (
-          <button onClick={handleSignIn} style={{ padding: '10px 20px', background: '#5546FF', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer' }}>
+          <button 
+            onClick={handleSignIn}
+            style={{ padding: '10px 20px', backgroundColor: '#5546FF', color: 'white', border: 'none', borderRadius: 5, cursor: 'pointer' }}
+          >
             Connect Hiro Wallet
           </button>
         )}
-        {sessionError && <p style={{ color: 'red' }}>{sessionError}</p>}
       </div>
 
-      <div style={{ display: 'grid', gap: 20 }}>
-        <section style={{ border: '1px solid #ddd', padding: 15, borderRadius: 8 }}>
-          <h3>Global Stats</h3>
+      <div style={{ display: 'grid', gap: 10 }}>
+        <div style={{ border: '1px solid #eee', padding: 15 }}>
+          <h3>Stats</h3>
           <button onClick={fetchTotalArtists}>Get Total Artists</button>
-          <span style={{ marginLeft: 10 }}>{totalArtists}</span>
-        </section>
+          <p>Result: {totalArtists}</p>
+        </div>
 
-        <section style={{ border: '1px solid #ddd', padding: 15, borderRadius: 8 }}>
-          <h3>Tip Artist</h3>
+        <div style={{ border: '1px solid #eee', padding: 15 }}>
+          <h3>Actions</h3>
           <input value={artistId} onChange={e => setArtistId(e.target.value)} placeholder="Artist ID" />
-          <input value={tipUstx} onChange={e => setTipUstx(e.target.value)} placeholder="Amount (uSTX)" />
-          <button onClick={tipArtist} disabled={!userData}>Send Tip</button>
-        </section>
+          <input value={tipUstx} onChange={e => setTipUstx(e.target.value)} placeholder="uSTX" />
+          <button onClick={tipArtist}>Tip Artist</button>
+        </div>
       </div>
-
-      {pending && <p style={{ color: 'blue' }}>{pending}</p>}
+      {pending && <p>{pending}</p>}
     </div>
   );
-}
-
-export default function App() {
-  return <Actions />;
 }
