@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppConfig, UserSession } from '@stacks/auth';
-// Namespace import is more resilient in Vite for this specific library
-import * as StacksConnect from '@stacks/connect';
+// Importing the entire namespace to prevent "is not a function" errors
+import * as Stacks from '@stacks/connect';
 
 import {
   ARTIST_REGISTRY,
@@ -15,9 +15,10 @@ import {
   roGetTotalArtists,
 } from './stacks';
 
-// --- Global Config ---
+// --- Global Configuration ---
 const appConfig = new AppConfig(['store_write', 'publish_data']);
 const userSession = new UserSession({ appConfig });
+
 const appDetails = {
   name: 'Audioblocks DApp (Testnet)',
   icon: window.location.origin + '/favicon.ico',
@@ -30,60 +31,67 @@ export default function App() {
   const [tipUstx, setTipUstx] = useState<string>('500000');
   const [pending, setPending] = useState<string>('');
 
-  // --- Auth logic ---
+  // --- Auth & Session Handling ---
   useEffect(() => {
     if (userSession.isUserSignedIn()) {
       setUserData(userSession.loadUserData());
     } else if (userSession.isSignInPending()) {
-      userSession.handlePendingSignIn().then(data => {
+      userSession.handlePendingSignIn().then((data) => {
         setUserData(data);
       }).catch(console.error);
     }
   }, []);
 
   const handleSignIn = useCallback(() => {
-    // Check the namespace object specifically
-    const connector = StacksConnect.showConnect || (StacksConnect as any).default?.showConnect;
-    
-    if (typeof connector !== 'function') {
-      alert("Stacks Connect library failed to load. Please ensure vite-plugin-node-polyfills is installed and configured.");
+    // Resilient function lookup
+    const showConnect = Stacks.showConnect || (Stacks as any).default?.showConnect;
+
+    if (typeof showConnect !== 'function') {
+      alert("Connect library failed to initialize. Check vite.config.ts polyfills.");
       return;
     }
 
-    connector({
+    showConnect({
       appDetails,
       userSession,
       onFinish: () => {
-        window.location.reload();
+        setUserData(userSession.loadUserData());
+        window.location.reload(); // Ensures session state syncs
       },
-      onCancel: () => console.log('Sign in cancelled'),
+      onCancel: () => console.log('Sign-in cancelled'),
     });
   }, []);
 
   const handleSignOut = () => {
     userSession.signUserOut();
+    setUserData(null);
+    localStorage.clear(); // Safety clear
     window.location.reload();
   };
 
-  // --- Contract Actions ---
+  // --- Contract Interactions ---
   const fetchTotalArtists = async () => {
-    setPending('Fetching...');
+    setPending('Fetching artists...');
     try {
-      const v = await roGetTotalArtists();
-      setTotalArtists(v as any);
-    } finally { setPending(''); }
+      const total = await roGetTotalArtists();
+      setTotalArtists(total as any);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setPending('');
+    }
   };
 
   const tipArtist = async () => {
-    if (!userData) return alert('Please sign in');
+    if (!userData) return alert("Please connect your wallet first");
+
+    const openContractCall = Stacks.openContractCall || (Stacks as any).default?.openContractCall;
     const options = makeTipArtistOptions(Number(artistId), BigInt(tipUstx));
-    
-    // Using the same resilient check for contract calls
-    const callContract = StacksConnect.openContractCall || (StacksConnect as any).default?.openContractCall;
-    
-    await callContract({
+
+    await openContractCall({
       ...options,
-      onFinish: (data: any) => alert(`Transaction sent: ${data.txId}`),
+      onFinish: (data) => alert(`Transaction broadcast! ID: ${data.txId}`),
+      onCancel: () => console.log("Transaction cancelled"),
     });
   };
 
@@ -91,41 +99,69 @@ export default function App() {
     userData?.profile?.stxAddress?.testnet || null, [userData]
   );
 
+  // --- Render ---
   return (
-    <div style={{ maxWidth: 800, margin: 'auto', padding: 20, fontFamily: 'sans-serif' }}>
-      <h1>Audioblocks Stacks DApp</h1>
+    <div style={{ maxWidth: '800px', margin: '40px auto', padding: '20px', fontFamily: 'system-ui, sans-serif' }}>
+      <header style={{ marginBottom: '40px', textAlign: 'center' }}>
+        <h1>Audioblocks Stacks DApp</h1>
+        <p>Network: <strong>Testnet</strong></p>
+      </header>
 
-      <div style={{ border: '1px solid #ddd', padding: 20, borderRadius: 10, marginBottom: 20 }}>
+      {/* Wallet Connection Card */}
+      <section style={{ padding: '20px', border: '1px solid #ddd', borderRadius: '12px', background: '#f9f9f9' }}>
         {userData ? (
           <div>
-            <p>Connected: <code>{userAddress}</code></p>
-            <button onClick={handleSignOut}>Disconnect</button>
+            <div style={{ marginBottom: '10px' }}>✅ <strong>Connected</strong></div>
+            <code style={{ display: 'block', background: '#eee', padding: '8px', borderRadius: '4px' }}>{userAddress}</code>
+            <button onClick={handleSignOut} style={{ marginTop: '15px', color: 'red', cursor: 'pointer' }}>Sign Out</button>
           </div>
         ) : (
-          <button 
-            onClick={handleSignIn}
-            style={{ padding: '10px 20px', backgroundColor: '#5546FF', color: 'white', border: 'none', borderRadius: 5, cursor: 'pointer' }}
-          >
-            Connect Hiro Wallet
-          </button>
+          <div style={{ textAlign: 'center' }}>
+            <p>Connect your wallet to interact with the blockchain</p>
+            <button 
+              onClick={handleSignIn}
+              style={{ padding: '12px 24px', background: '#5546FF', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', cursor: 'pointer' }}
+            >
+              Connect Hiro Wallet
+            </button>
+          </div>
         )}
-      </div>
+      </section>
 
-      <div style={{ display: 'grid', gap: 10 }}>
-        <div style={{ border: '1px solid #eee', padding: 15 }}>
-          <h3>Stats</h3>
-          <button onClick={fetchTotalArtists}>Get Total Artists</button>
-          <p>Result: {totalArtists}</p>
+      {/* DApp Actions */}
+      <main style={{ marginTop: '30px', display: 'grid', gap: '20px' }}>
+        <div style={{ padding: '20px', border: '1px solid #eee', borderRadius: '8px' }}>
+          <h3>Global Registry</h3>
+          <button onClick={fetchTotalArtists} disabled={!!pending}>
+            {pending ? 'Loading...' : 'Get Total Artists'}
+          </button>
+          {totalArtists !== null && <p>Total Registered: <strong>{String(totalArtists)}</strong></p>}
         </div>
 
-        <div style={{ border: '1px solid #eee', padding: 15 }}>
-          <h3>Actions</h3>
-          <input value={artistId} onChange={e => setArtistId(e.target.value)} placeholder="Artist ID" />
-          <input value={tipUstx} onChange={e => setTipUstx(e.target.value)} placeholder="uSTX" />
-          <button onClick={tipArtist}>Tip Artist</button>
+        <div style={{ padding: '20px', border: '1px solid #eee', borderRadius: '8px' }}>
+          <h3>Tip an Artist</h3>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+            <input 
+              type="number" 
+              value={artistId} 
+              onChange={e => setArtistId(e.target.value)} 
+              placeholder="Artist ID" 
+              style={{ width: '100px', padding: '8px' }}
+            />
+            <input 
+              type="number" 
+              value={tipUstx} 
+              onChange={e => setTipUstx(e.target.value)} 
+              placeholder="uSTX amount" 
+              style={{ flex: 1, padding: '8px' }}
+            />
+            <button onClick={tipArtist} disabled={!userData}>Send Tip</button>
+          </div>
+          <small style={{ color: '#666' }}>1 STX = 1,000,000 uSTX</small>
         </div>
-      </div>
-      {pending && <p>{pending}</p>}
+      </main>
+
+      {pending && <div style={{ marginTop: '20px', color: '#5546FF', textAlign: 'center' }}>{pending}</div>}
     </div>
   );
 }
