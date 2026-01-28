@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import * as StacksConnect from '@stacks/connect';
 import { showConnect, openContractCall } from '@stacks/connect';
 import { AppConfig, UserSession } from '@stacks/auth';
 // ... keep the rest of your imports from './stacks'
