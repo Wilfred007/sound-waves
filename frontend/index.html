@@ -4,6 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Audioblocks DApp (Testnet)</title>
+    <script>
+      // Ensure globals exist before module imports execute
+      window.global = window.global || window;
+      window.process = window.process || { env: {} };
+    </script>
+    <script type="module">
+      import { Buffer } from 'buffer';
+      import process from 'process';
+      if (!window.global) window.global = window;
+      if (!window.process) window.process = process;
+      if (!window.Buffer) window.Buffer = Buffer;
+    </script>
   </head>
   <body>
     <div id="root"></div>

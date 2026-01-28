@@ -24,6 +24,8 @@ export default defineConfig({
       util: 'util',
       events: 'events',
       path: 'path-browserify',
+      buffer: 'buffer',
+      string_decoder: 'string_decoder/',
     },
   },
   optimizeDeps: {
@@ -36,6 +38,9 @@ export default defineConfig({
       'events',
       'path-browserify',
       'readable-stream',
+      'safe-buffer',
+      'string_decoder',
+      'inherits',
     ],
     esbuildOptions: {
       define: {
