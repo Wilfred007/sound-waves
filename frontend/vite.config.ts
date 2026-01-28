@@ -13,8 +13,16 @@ export default defineConfig({
       },
     }),
   ],
-  // Add this block:
   define: {
-    global: 'window',
+    global: 'globalThis',
+    'process.env': {},
+  },
+  optimizeDeps: {
+    include: ['buffer', 'process'],
+    esbuildOptions: {
+      define: {
+        global: 'globalThis',
+      },
+    },
   },
 });
