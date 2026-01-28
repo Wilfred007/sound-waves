@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [
     react(),
     nodePolyfills({
-      // Whether to polyfill specific globals.
+      // Specific globals needed by Stacks.js
       globals: {
         Buffer: true, 
         global: true,
